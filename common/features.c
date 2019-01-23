@@ -6,7 +6,8 @@
 static const u32 our_localfeatures[] = {
 	LOCAL_DATA_LOSS_PROTECT,
 	LOCAL_INITIAL_ROUTING_SYNC,
-	LOCAL_GOSSIP_QUERIES
+	LOCAL_GOSSIP_QUERIES,
+	LOCAL_RGB_COLORED_CHANNELS
 };
 
 static const u32 our_globalfeatures[] = {

@@ -30,10 +30,15 @@ bool global_feature_negotiated(const u8 *gfeatures, size_t f);
  * | 3    | `initial_routing_sync`           |...
  * | 4/5  | `option_upfront_shutdown_script` |...
  * | 6/7  | `gossip_queries`                 |...
+ * | 8/9  | `rgb_colored_channels`           |...
  */
 #define LOCAL_DATA_LOSS_PROTECT			0
 #define LOCAL_INITIAL_ROUTING_SYNC		2
 #define LOCAL_UPFRONT_SHUTDOWN_SCRIPT		4
 #define LOCAL_GOSSIP_QUERIES			6
+
+// FIXME: forcing it to an even bit right now, change to even/odd pair in the future
+// FIXME: do we need a global feature bit too?
+#define LOCAL_RGB_COLORED_CHANNELS		8
 
 #endif /* LIGHTNING_COMMON_FEATURES_H */
