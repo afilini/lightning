@@ -6,3 +6,4 @@ libsodium.a
 libsodium.la
 libwallycore.a
 libwallycore.la
+librgb.a

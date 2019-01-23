@@ -3,7 +3,8 @@ SUBMODULES =					\
 	external/libwally-core			\
 	external/jsmn				\
 	external/libbase58			\
-	external/libbacktrace
+	external/libbacktrace       \
+	external/c-rgb
 
 LIBSODIUM_HEADERS := external/libsodium/src/libsodium/include/sodium.h
 LIBWALLY_HEADERS := external/libwally-core/include/wally_bip32.h		\
@@ -13,9 +14,10 @@ LIBSECP_HEADERS := external/libwally-core/src/secp256k1/include/secp256k1_ecdh.h
 		external/libwally-core/src/secp256k1/include/secp256k1.h
 JSMN_HEADERS := external/jsmn/jsmn.h
 LIBBASE58_HEADERS := external/libbase58/libbase58.h
+LIBRGB_HEADERS := external/c-rgb/include/rgb.h
 
-EXTERNAL_HEADERS := $(LIBSODIUM_HEADERS) $(LIBWALLY_HEADERS) $(LIBSECP_HEADERS) $(JSMN_HEADERS) $(LIBBASE58_HEADERS)
-EXTERNAL_LIBS := external/libwallycore.a external/libsecp256k1.a external/libsodium.a external/libjsmn.a external/libbase58.a external/libbacktrace.a
+EXTERNAL_HEADERS := $(LIBSODIUM_HEADERS) $(LIBWALLY_HEADERS) $(LIBSECP_HEADERS) $(JSMN_HEADERS) $(LIBBASE58_HEADERS) $(LIBRGB_HEADERS)
+EXTERNAL_LIBS := external/libwallycore.a external/libsecp256k1.a external/libsodium.a external/libjsmn.a external/libbase58.a external/libbacktrace.a external/librgb.a
 
 EXTERNAL_INCLUDE_FLAGS :=					\
 	-I external/libsodium/src/libsodium/include		\
@@ -24,7 +26,8 @@ EXTERNAL_INCLUDE_FLAGS :=					\
 	-I external/jsmn/					\
 	-I external/libbase58/					\
 	-I external/libbacktrace/				\
-	-I external/libbacktrace-build
+	-I external/libbacktrace-build          \
+	-I external/c-rgb/include
 
 EXTERNAL_LDLIBS := -Lexternal $(patsubst lib%.a,-l%,$(notdir $(EXTERNAL_LIBS)))
 
@@ -77,6 +80,10 @@ external/libbase58.a: external/base58.o
 	$(AR) rc $@ $<
 
 external/libbacktrace/backtrace.h: submodcheck
+
+external/librgb.a:
+	$(MAKE) -C external/c-rgb/ lib
+	cp external/c-rgb/target/debug/librgb.a external/librgb.a # TODO: replace with release target, from rgb-org instead of afilini
 
 # Need separate build dir: changes inside submodule make git think it's dirty.
 external/libbacktrace.a: external/libbacktrace/backtrace.h
