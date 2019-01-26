@@ -1553,6 +1553,9 @@ static struct io_plan *peer_msg_in(struct io_conn *conn,
 	case WIRE_UPDATE_FEE:
 	case WIRE_CHANNEL_REESTABLISH:
 	case WIRE_ANNOUNCEMENT_SIGNATURES:
+	case WIRE_RGB_OPEN_CHANNEL:
+	case WIRE_RGB_FUNDING_CREATED:
+	case WIRE_RGB_UPDATE_ADD_HTLC:
 		status_broken("peer %s: relayed unexpected msg of type %s",
 			      type_to_string(tmpctx, struct pubkey, &peer->id),
 			      wire_type_name(fromwire_peektype(msg)));

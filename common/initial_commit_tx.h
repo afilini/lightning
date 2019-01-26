@@ -4,6 +4,7 @@
 #include "config.h"
 #include <bitcoin/pubkey.h>
 #include <common/htlc.h>
+#include <rgb.h>
 
 struct keyset;
 
@@ -66,6 +67,7 @@ static inline u64 commit_tx_base_fee_msat(u32 feerate_per_kw,
  * @other_pay_msat: amount to pay directly to the other side
  * @obscured_commitment_number: number to encode in commitment transaction
  * @side: side to generate commitment transaction for.
+ * @proof: rgb proof to commit to
  *
  * We need to be able to generate the remote side's tx to create signatures,
  * but the BOLT is expressed in terms of generating our local commitment
@@ -84,7 +86,8 @@ struct bitcoin_tx *initial_commit_tx(const tal_t *ctx,
 				     u64 other_pay_msat,
 				     u64 self_reserve_msat,
 				     u64 obscured_commitment_number,
-				     enum side side);
+				     enum side side,
+				     const struct rgb_proof *proof);
 
 /* try_subtract_fee - take away this fee from the funder (and return true), or all if insufficient (and return false). */
 bool try_subtract_fee(enum side funder, enum side side,

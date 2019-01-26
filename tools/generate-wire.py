@@ -69,6 +69,7 @@ typemap = {
     ('update_fail_htlc', 'reason'): FieldType('u8'),
     ('node_announcement', 'alias'): FieldType('u8'),
     ('update_add_htlc', 'onion_routing_packet'): FieldType('u8'),
+    ('rgb_update_add_htlc', 'onion_routing_packet'): FieldType('u8'),
     ('update_fulfill_htlc', 'payment_preimage'): FieldType('struct preimage'),
     ('error', 'data'): FieldType('u8'),
     ('shutdown', 'scriptpubkey'): FieldType('u8'),

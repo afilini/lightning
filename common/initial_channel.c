@@ -21,7 +21,8 @@ struct channel *new_initial_channel(const tal_t *ctx,
 				    const struct basepoints *remote_basepoints,
 				    const struct pubkey *local_funding_pubkey,
 				    const struct pubkey *remote_funding_pubkey,
-				    enum side funder)
+				    enum side funder,
+				    const struct rgb_proof *funding_proof)
 {
 	struct channel *channel = tal(ctx, struct channel);
 
@@ -64,6 +65,8 @@ struct channel *new_initial_channel(const tal_t *ctx,
 	if (channel->chainparams == NULL)
 		return tal_free(channel);
 
+    	channel->funding_proof = *funding_proof;
+
 	return channel;
 }
 
@@ -102,7 +105,8 @@ struct bitcoin_tx *initial_channel_tx(const tal_t *ctx,
 				 channel->view[side].owed_msat[!side],
 				 channel_reserve_msat(channel, side),
 				 0 ^ channel->commitment_number_obscurer,
-				 side);
+				 side,
+				 &channel->funding_proof);
 }
 
 static char *fmt_channel_view(const tal_t *ctx, const struct channel_view *view)

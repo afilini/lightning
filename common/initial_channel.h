@@ -10,6 +10,7 @@
 #include <common/channel_config.h>
 #include <common/derive_basepoints.h>
 #include <common/htlc.h>
+#include <rgb.h>
 #include <stdbool.h>
 
 struct signature;
@@ -30,6 +31,8 @@ struct channel {
 	/* Funding txid and output. */
 	struct bitcoin_txid funding_txid;
 	unsigned int funding_txout;
+
+	struct rgb_proof funding_proof;
 
 	/* Keys used to spend funding tx. */
 	struct pubkey funding_pubkey[NUM_SIDES];
@@ -87,6 +90,7 @@ static inline u64 channel_reserve_msat(const struct channel *channel,
  * @local_fundingkey: local funding key
  * @remote_fundingkey: remote funding key
  * @funder: which side initiated it.
+ * @funding_proof: the proof spent by the funding tx
  *
  * Returns channel, or NULL if malformed.
  */
@@ -103,7 +107,8 @@ struct channel *new_initial_channel(const tal_t *ctx,
 				    const struct basepoints *remote_basepoints,
 				    const struct pubkey *local_funding_pubkey,
 				    const struct pubkey *remote_funding_pubkey,
-				    enum side funder);
+				    enum side funder,
+				    const struct rgb_proof *funding_proof);
 
 
 /**

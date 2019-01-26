@@ -7,6 +7,7 @@
 #include <common/status.h>
 #include <common/utils.h>
 #include <inttypes.h>
+#include <rgb.h>
 
 /* BOLT #3:
  *
@@ -71,11 +72,13 @@ struct bitcoin_tx *initial_commit_tx(const tal_t *ctx,
 				     u64 other_pay_msat,
 				     u64 self_reserve_msat,
 				     u64 obscured_commitment_number,
-				     enum side side)
+				     enum side side,
+				     const struct rgb_proof *proof)
 {
 	u64 base_fee_msat;
 	struct bitcoin_tx *tx;
 	size_t n, untrimmed;
+	bool has_rgb_commitment = proof != NULL;
 
 	assert(self_pay_msat + other_pay_msat <= funding_satoshis * 1000);
 
@@ -186,7 +189,7 @@ struct bitcoin_tx *initial_commit_tx(const tal_t *ctx,
 	}
 
 	assert(n <= tal_count(tx->output));
-	tal_resize(&tx->output, n);
+	tal_resize(&tx->output, n + (has_rgb_commitment ? 1 : 0));
 
 	/* BOLT #3:
 	 *
@@ -194,6 +197,15 @@ struct bitcoin_tx *initial_commit_tx(const tal_t *ctx,
 	 *    order](#transaction-input-and-output-ordering)
 	 */
 	permute_outputs(tx->output, NULL, NULL);
+
+	// Add the RGB commitment output
+	if (has_rgb_commitment) {
+	    u8 *commitment_script = NULL;
+	    rgb_proof_get_expected_script(proof, &commitment_script);
+
+	    tx->output[n].amount = 0;
+	    tx->output[n].script = commitment_script;
+	}
 
 	/* BOLT #3:
 	 *

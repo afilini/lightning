@@ -189,7 +189,7 @@ LDFLAGS = $(PIE_LDFLAGS)
 ifeq ($(STATIC),1)
 LDLIBS = -L/usr/local/lib -Wl,-dn -lgmp -lsqlite3 -lz -Wl,-dy -lm -lpthread -ldl $(COVFLAGS)
 else
-LDLIBS = -L/usr/local/lib -lm -lgmp -lsqlite3 -lz $(COVFLAGS)
+LDLIBS = -L/usr/local/lib -lm -lgmp -lsqlite3 -ldl -lpthread -lz $(COVFLAGS)
 endif
 
 default: all-programs all-test-programs

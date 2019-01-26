@@ -1729,6 +1729,7 @@ static void peer_in(struct peer *peer, const u8 *msg)
 		handle_peer_announcement_signatures(peer, msg);
 		return;
 	case WIRE_UPDATE_ADD_HTLC:
+	case WIRE_RGB_UPDATE_ADD_HTLC: // TODO!
 		handle_peer_add_htlc(peer, msg);
 		return;
 	case WIRE_COMMITMENT_SIGNED:
@@ -1755,8 +1756,10 @@ static void peer_in(struct peer *peer, const u8 *msg)
 
 	case WIRE_INIT:
 	case WIRE_OPEN_CHANNEL:
+	case WIRE_RGB_OPEN_CHANNEL:
 	case WIRE_ACCEPT_CHANNEL:
 	case WIRE_FUNDING_CREATED:
+	case WIRE_RGB_FUNDING_CREATED:
 	case WIRE_FUNDING_SIGNED:
 	case WIRE_CHANNEL_REESTABLISH:
 	case WIRE_CLOSING_SIGNED:

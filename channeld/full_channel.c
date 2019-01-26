@@ -49,7 +49,8 @@ struct channel *new_full_channel(const tal_t *ctx,
 						      remote_basepoints,
 						      local_funding_pubkey,
 						      remote_funding_pubkey,
-						      funder);
+						      funder,
+						      NULL);
 
 	if (channel) {
 		/* Feerates can be different. */
