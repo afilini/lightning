@@ -7,7 +7,6 @@
 #include <common/status.h>
 #include <common/utils.h>
 #include <inttypes.h>
-#include <rgb.h>
 
 /* BOLT #3:
  *
@@ -59,26 +58,16 @@ u8 *to_self_wscript(const tal_t *ctx,
 					&keyset->self_delayed_payment_key);
 }
 
-struct bitcoin_tx *initial_commit_tx(const tal_t *ctx,
-				     const struct bitcoin_txid *funding_txid,
-				     unsigned int funding_txout,
-				     u64 funding_satoshis,
-				     enum side funder,
-				     u16 to_self_delay,
-				     const struct keyset *keyset,
-				     u32 feerate_per_kw,
-				     u64 dust_limit_satoshis,
-				     u64 self_pay_msat,
-				     u64 other_pay_msat,
-				     u64 self_reserve_msat,
-				     u64 obscured_commitment_number,
-				     enum side side,
-				     const struct rgb_proof *proof)
+struct bitcoin_tx *initial_commit_tx(const tal_t *ctx, const struct bitcoin_txid *funding_txid, unsigned int funding_txout,
+				     u64 funding_satoshis, enum side funder, u16 to_self_delay, const struct keyset *keyset,
+				     u32 feerate_per_kw, u64 dust_limit_satoshis, u64 self_pay_msat, u64 other_pay_msat,
+				     u64 self_reserve_msat, u64 obscured_commitment_number, enum side side,
+				     const struct rgb_proof *funding_proof, u32 rgb_amount, const struct sha256 asset_id)
 {
 	u64 base_fee_msat;
 	struct bitcoin_tx *tx;
 	size_t n, untrimmed;
-	bool has_rgb_commitment = proof != NULL;
+	bool has_rgb_commitment = funding_proof != NULL;
 
 	assert(self_pay_msat + other_pay_msat <= funding_satoshis * 1000);
 
@@ -196,10 +185,29 @@ struct bitcoin_tx *initial_commit_tx(const tal_t *ctx,
 	 * 7. Sort the outputs into [BIP 69
 	 *    order](#transaction-input-and-output-ordering)
 	 */
-	permute_outputs(tx->output, NULL, NULL);
+	// FIXME: disable the permutation, even though there should only be 1 output here
+	//permute_outputs(tx->output, NULL, NULL);
 
-	// Add the RGB commitment output
 	if (has_rgb_commitment) {
+	    struct rgb_proof *proof = tal(ctx, struct rgb_proof);
+	    proof->contract = NULL;
+
+	    proof->bind_to_count = 1;
+	    proof->bind_to = tal_arr(ctx, struct rgb_bitcoin_outpoint, proof->bind_to_count);
+
+	    // bind-to the funding utxo
+	    memcpy(&proof->bind_to[0].txid, funding_txid, 32);
+	    proof->bind_to[0].vout = funding_txout;
+
+	    proof->input_count = 1;
+	    proof->input = (struct rgb_proof*) funding_proof;
+
+	    proof->output = tal_arr(ctx, struct rgb_output_entry, 1);
+
+	    memcpy(&proof->output[0].asset_id, &asset_id, 32);
+	    proof->output[0].amount = rgb_amount;
+	    proof->output[0].vout = 0;
+
 	    u8 *commitment_script = NULL;
 	    rgb_proof_get_expected_script(proof, &commitment_script);
 

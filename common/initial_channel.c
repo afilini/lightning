@@ -8,21 +8,13 @@
 #include <common/type_to_string.h>
 #include <inttypes.h>
 
-struct channel *new_initial_channel(const tal_t *ctx,
-				    const struct bitcoin_blkid *chain_hash,
-				    const struct bitcoin_txid *funding_txid,
-				    unsigned int funding_txout,
-				    u64 funding_satoshis,
-				    u64 local_msatoshi,
-				    u32 feerate_per_kw,
-				    const struct channel_config *local,
-				    const struct channel_config *remote,
-				    const struct basepoints *local_basepoints,
-				    const struct basepoints *remote_basepoints,
-				    const struct pubkey *local_funding_pubkey,
-				    const struct pubkey *remote_funding_pubkey,
-				    enum side funder,
-				    const struct rgb_proof *funding_proof)
+struct channel *new_initial_channel(const tal_t *ctx, const struct bitcoin_blkid *chain_hash, const struct bitcoin_txid *funding_txid,
+				    unsigned int funding_txout, u64 funding_satoshis, u64 local_msatoshi, u32 feerate_per_kw,
+				    const struct channel_config *local, const struct channel_config *remote,
+				    const struct basepoints *local_basepoints, const struct basepoints *remote_basepoints,
+				    const struct pubkey *local_funding_pubkey, const struct pubkey *remote_funding_pubkey,
+				    enum side funder, const struct sha256 rgb_asset_id, const struct rgb_proof *funding_proof,
+				    u32 funding_rgb_amount)
 {
 	struct channel *channel = tal(ctx, struct channel);
 
@@ -65,7 +57,9 @@ struct channel *new_initial_channel(const tal_t *ctx,
 	if (channel->chainparams == NULL)
 		return tal_free(channel);
 
-    	channel->funding_proof = *funding_proof;
+	channel->is_rgb = funding_proof != NULL;
+
+    	channel->funding_proof = funding_proof;
 
 	return channel;
 }
@@ -96,7 +90,7 @@ struct bitcoin_tx *initial_channel_tx(const tal_t *ctx,
 				 channel->funding_txout,
 				 channel->funding_msat / 1000,
 				 channel->funder,
-				 /* They specify our to_self_delay and v.v. */
+		/* They specify our to_self_delay and v.v. */
 				 channel->config[!side].to_self_delay,
 				 &keyset,
 				 channel->view[side].feerate_per_kw,
@@ -106,7 +100,7 @@ struct bitcoin_tx *initial_channel_tx(const tal_t *ctx,
 				 channel_reserve_msat(channel, side),
 				 0 ^ channel->commitment_number_obscurer,
 				 side,
-				 &channel->funding_proof);
+				 channel->funding_proof, channel->funding_rgb_amount, channel->asset_id);
 }
 
 static char *fmt_channel_view(const tal_t *ctx, const struct channel_view *view)

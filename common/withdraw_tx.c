@@ -17,7 +17,7 @@ struct bitcoin_tx *withdraw_tx(const tal_t *ctx,
 {
 	struct bitcoin_tx *tx;
 
-	tx = tx_spending_utxos(ctx, utxos, bip32_base, changesat != 0);
+	tx = tx_spending_utxos(ctx, utxos, bip32_base, changesat != 0, 0);
 
 	tx->output[0].amount = withdraw_amount;
 	tx->output[0].script = destination;

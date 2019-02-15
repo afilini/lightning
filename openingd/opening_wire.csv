@@ -40,6 +40,25 @@ opening_funder,,num_inputs,u16
 opening_funder,,inputs,num_inputs*struct utxo
 opening_funder,,bip32,struct ext_key
 
+rgb_opening_funder,6011
+rgb_opening_funder,,funding_satoshis,u64
+rgb_opening_funder,,push_msat,u64
+rgb_opening_funder,,feerate_per_kw,u32
+rgb_opening_funder,,change_satoshis,u64
+rgb_opening_funder,,change_keyindex,u32
+rgb_opening_funder,,channel_flags,u8
+#include <common/utxo.h>
+rgb_opening_funder,,num_inputs,u16
+rgb_opening_funder,,inputs,num_inputs*struct utxo
+rgb_opening_funder,,bip32,struct ext_key
+#include <rgb.h>
+# TODO: add support for multiple input proofs
+rgb_opening_funder,,asset_id,struct sha256
+rgb_opening_funder,,rgb_amount,u32
+rgb_opening_funder,,rgb_change,u32
+rgb_opening_funder,,rgb_proof_size,u16
+rgb_opening_funder,,rgb_proof,rgb_proof_size*u8
+
 # Openingd->master: we've successfully offered channel.
 # This gives their sig, means we can broadcast tx: we're done.
 opening_funder_reply,6101

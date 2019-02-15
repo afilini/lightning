@@ -32,8 +32,6 @@ struct channel {
 	struct bitcoin_txid funding_txid;
 	unsigned int funding_txout;
 
-	struct rgb_proof funding_proof;
-
 	/* Keys used to spend funding tx. */
 	struct pubkey funding_pubkey[NUM_SIDES];
 
@@ -63,6 +61,18 @@ struct channel {
 
 	/* Chain params to check against */
 	const struct chainparams *chainparams;
+
+	/* Is this an RGB channel? */
+	bool is_rgb;
+
+	/* The asset_id */
+	const struct sha256 asset_id;
+
+	/* Funding proof for the channel */
+	const struct rgb_proof *funding_proof;
+
+	/* Amount of tokens */
+	u32 funding_rgb_amount;
 };
 
 /* This side's reserve is specified by the *other* side, and in satoshis:
@@ -94,21 +104,13 @@ static inline u64 channel_reserve_msat(const struct channel *channel,
  *
  * Returns channel, or NULL if malformed.
  */
-struct channel *new_initial_channel(const tal_t *ctx,
-				    const struct bitcoin_blkid *chain_hash,
-				    const struct bitcoin_txid *funding_txid,
-				    unsigned int funding_txout,
-				    u64 funding_satoshis,
-				    u64 local_msatoshi,
-				    u32 feerate_per_kw,
-				    const struct channel_config *local,
-				    const struct channel_config *remote,
-				    const struct basepoints *local_basepoints,
-				    const struct basepoints *remote_basepoints,
-				    const struct pubkey *local_funding_pubkey,
-				    const struct pubkey *remote_funding_pubkey,
-				    enum side funder,
-				    const struct rgb_proof *funding_proof);
+struct channel *new_initial_channel(const tal_t *ctx, const struct bitcoin_blkid *chain_hash, const struct bitcoin_txid *funding_txid,
+				    unsigned int funding_txout, u64 funding_satoshis, u64 local_msatoshi, u32 feerate_per_kw,
+				    const struct channel_config *local, const struct channel_config *remote,
+				    const struct basepoints *local_basepoints, const struct basepoints *remote_basepoints,
+				    const struct pubkey *local_funding_pubkey, const struct pubkey *remote_funding_pubkey,
+				    enum side funder, const struct sha256 rgb_asset_id, const struct rgb_proof *funding_proof,
+				    u32 funding_rgb_amount);
 
 
 /**

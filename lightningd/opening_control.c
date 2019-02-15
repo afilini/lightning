@@ -679,6 +679,7 @@ static unsigned int openingd_msg(struct subd *openingd,
 	/* We send these! */
 	case WIRE_OPENING_INIT:
 	case WIRE_OPENING_FUNDER:
+	case WIRE_RGB_OPENING_FUNDER:
 	case WIRE_OPENING_CAN_ACCEPT_CHANNEL:
 	case WIRE_OPENING_DEV_MEMLEAK:
 	/* Replies never get here */

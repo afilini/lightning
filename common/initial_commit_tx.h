@@ -73,21 +73,11 @@ static inline u64 commit_tx_base_fee_msat(u32 feerate_per_kw,
  * but the BOLT is expressed in terms of generating our local commitment
  * transaction, so we carefully use the terms "self" and "other" here.
  */
-struct bitcoin_tx *initial_commit_tx(const tal_t *ctx,
-				     const struct bitcoin_txid *funding_txid,
-				     unsigned int funding_txout,
-				     u64 funding_satoshis,
-				     enum side funder,
-				     u16 to_self_delay,
-				     const struct keyset *keyset,
-				     u32 feerate_per_kw,
-				     u64 dust_limit_satoshis,
-				     u64 self_pay_msat,
-				     u64 other_pay_msat,
-				     u64 self_reserve_msat,
-				     u64 obscured_commitment_number,
-				     enum side side,
-				     const struct rgb_proof *proof);
+struct bitcoin_tx *initial_commit_tx(const tal_t *ctx, const struct bitcoin_txid *funding_txid, unsigned int funding_txout,
+				     u64 funding_satoshis, enum side funder, u16 to_self_delay, const struct keyset *keyset,
+				     u32 feerate_per_kw, u64 dust_limit_satoshis, u64 self_pay_msat, u64 other_pay_msat,
+				     u64 self_reserve_msat, u64 obscured_commitment_number, enum side side,
+				     const struct rgb_proof *funding_proof, u32 rgb_amount, const struct sha256 asset_id);
 
 /* try_subtract_fee - take away this fee from the funder (and return true), or all if insufficient (and return false). */
 bool try_subtract_fee(enum side funder, enum side side,

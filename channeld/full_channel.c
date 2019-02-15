@@ -37,6 +37,7 @@ struct channel *new_full_channel(const tal_t *ctx,
 				 const struct pubkey *remote_funding_pubkey,
 				 enum side funder)
 {
+    	const struct sha256 *dummy_sha = tal(tmpctx, struct sha256);
 	struct channel *channel = new_initial_channel(ctx,
 						      chain_hash,
 						      funding_txid,
@@ -50,7 +51,7 @@ struct channel *new_full_channel(const tal_t *ctx,
 						      local_funding_pubkey,
 						      remote_funding_pubkey,
 						      funder,
-						      NULL);
+						      *dummy_sha, NULL, 0);
 
 	if (channel) {
 		/* Feerates can be different. */

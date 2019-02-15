@@ -43,12 +43,21 @@ struct utxo *fromwire_utxo(const tal_t *ctx, const u8 **ptr, size_t *max)
 }
 
 struct bitcoin_tx *tx_spending_utxos(const tal_t *ctx,
-				     const struct utxo **utxos,
-				     const struct ext_key *bip32_base,
-				     bool add_change_output)
+	                             const struct utxo **utxos,
+	                             const struct ext_key *bip32_base,
+	                             bool add_change_output,
+				     bool add_commitment_output)
 {
+    	u16 output_count = 1;
+
+    	if (add_change_output)
+    	    output_count++;
+
+    	if (add_commitment_output)
+    	    output_count++;
+
 	struct bitcoin_tx *tx =
-	    bitcoin_tx(ctx, tal_count(utxos), add_change_output ? 2 : 1);
+	    bitcoin_tx(ctx, tal_count(utxos), output_count);
 
 	for (size_t i = 0; i < tal_count(utxos); i++) {
 		tx->input[i].txid = utxos[i]->txid;
