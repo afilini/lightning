@@ -325,7 +325,8 @@ static struct route_info *unpack_route(const tal_t *ctx,
 
 		if (!json_to_pubkey(buffer, pubkey, &r->pubkey)
 		    || !json_to_short_channel_id(buffer, scid,
-						 &r->short_channel_id)
+						 &r->short_channel_id,
+						 deprecated_apis)
 		    || !json_to_number(buffer, fee_base, &r->fee_base_msat)
 		    || !json_to_number(buffer, fee_prop,
 				       &r->fee_proportional_millionths)
@@ -370,6 +371,7 @@ static struct command_result *json_invoice(struct command *cmd,
 	u64 *expiry;
 	struct sha256 rhash;
 	bool *exposeprivate;
+	const struct chainparams *chainparams;
 #if DEVELOPER
 	const jsmntok_t *routes;
 #endif
@@ -406,6 +408,14 @@ static struct command_result *json_invoice(struct command *cmd,
 				    strlen(desc_val));
 	}
 
+	chainparams = get_chainparams(cmd->ld);
+	if (msatoshi_val && *msatoshi_val > chainparams->max_payment_msat) {
+		return command_fail(cmd, JSONRPC2_INVALID_PARAMS,
+				    "msatoshi cannot exceed %"PRIu64
+				    " millisatoshis",
+				    chainparams->max_payment_msat);
+	}
+
 	if (fallbacks) {
 		size_t i;
 		const jsmntok_t *t;
@@ -438,7 +448,7 @@ static struct command_result *json_invoice(struct command *cmd,
 
 	/* Construct bolt11 string. */
 	info->b11 = new_bolt11(info, msatoshi_val);
-	info->b11->chain = get_chainparams(cmd->ld);
+	info->b11->chain = chainparams;
 	info->b11->timestamp = time_now().ts.tv_sec;
 	info->b11->payment_hash = rhash;
 	info->b11->receiver_id = cmd->ld->id;

@@ -17,17 +17,29 @@ LIBBASE58_HEADERS := external/libbase58/libbase58.h
 LIBRGB_HEADERS := external/c-rgb/include/rgb.h
 
 EXTERNAL_HEADERS := $(LIBSODIUM_HEADERS) $(LIBWALLY_HEADERS) $(LIBSECP_HEADERS) $(JSMN_HEADERS) $(LIBBASE58_HEADERS) $(LIBRGB_HEADERS)
-EXTERNAL_LIBS := external/libwallycore.a external/libsecp256k1.a external/libsodium.a external/libjsmn.a external/libbase58.a external/libbacktrace.a external/librgb.a
+EXTERNAL_LIBS := external/libwallycore.a external/libsecp256k1.a external/libjsmn.a external/libbacktrace.a external/librgb.a
 
 EXTERNAL_INCLUDE_FLAGS :=					\
-	-I external/libsodium/src/libsodium/include		\
 	-I external/libwally-core/include/			\
 	-I external/libwally-core/src/secp256k1/include/	\
 	-I external/jsmn/					\
-	-I external/libbase58/					\
 	-I external/libbacktrace/				\
 	-I external/libbacktrace-build          \
 	-I external/c-rgb/include
+
+ifneq ($(HAVE_GOOD_LIBSODIUM),1)
+EXTERNAL_INCLUDE_FLAGS += -I external/libsodium/src/libsodium/include
+EXTERNAL_LIBS += external/libsodium.a
+else
+LDLIBS += -lsodium
+endif
+
+ifneq ($(HAVE_SYSTEM_LIBBASE58),1)
+EXTERNAL_INCLUDE_FLAGS += -I external/libbase58/
+EXTERNAL_LIBS +=  external/libbase58.a
+else
+LDLIBS += -lbase58
+endif
 
 EXTERNAL_LDLIBS := -Lexternal $(patsubst lib%.a,-l%,$(notdir $(EXTERNAL_LIBS)))
 

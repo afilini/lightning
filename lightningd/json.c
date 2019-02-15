@@ -49,37 +49,6 @@ json_add_route(struct json_stream *r, char const *n,
 	json_array_end(r);
 }
 
-/* Outputs fields, not a separate object*/
-void
-json_add_payment_fields(struct json_stream *response,
-			const struct wallet_payment *t)
-{
-	json_add_u64(response, "id", t->id);
-	json_add_hex(response, "payment_hash", &t->payment_hash, sizeof(t->payment_hash));
-	json_add_pubkey(response, "destination", &t->destination);
-	json_add_u64(response, "msatoshi", t->msatoshi);
-	json_add_u64(response, "msatoshi_sent", t->msatoshi_sent);
-	json_add_u64(response, "created_at", t->timestamp);
-
-	switch (t->status) {
-	case PAYMENT_PENDING:
-		json_add_string(response, "status", "pending");
-		break;
-	case PAYMENT_COMPLETE:
-		json_add_string(response, "status", "complete");
-		break;
-	case PAYMENT_FAILED:
-		json_add_string(response, "status", "failed");
-		break;
-	}
-	if (t->payment_preimage)
-		json_add_hex(response, "payment_preimage",
-			     t->payment_preimage,
-			     sizeof(*t->payment_preimage));
-	if (t->description)
-		json_add_string(response, "description", t->description);
-}
-
 void json_add_pubkey(struct json_stream *response,
 		     const char *fieldname,
 		     const struct pubkey *key)
@@ -128,7 +97,8 @@ struct command_result *param_short_channel_id(struct command *cmd,
 					      struct short_channel_id **scid)
 {
 	*scid = tal(cmd, struct short_channel_id);
-	if (json_to_short_channel_id(buffer, tok, *scid))
+	if (json_to_short_channel_id(buffer, tok, *scid,
+				     deprecated_apis))
 		return NULL;
 
 	return command_fail(cmd, JSONRPC2_INVALID_PARAMS,

@@ -298,6 +298,7 @@ class BitcoinD(TailableProc):
         btc_conf_file = os.path.join(bitcoin_dir, 'bitcoin.conf')
         write_config(btc_conf_file, BITCOIND_CONFIG, BITCOIND_REGTEST)
         self.rpc = SimpleBitcoinProxy(btc_conf_file=btc_conf_file)
+        self.proxies = []
 
     def start(self):
         TailableProc.start(self)
@@ -305,13 +306,24 @@ class BitcoinD(TailableProc):
 
         logging.info("BitcoinD started")
 
+    def stop(self):
+        for p in self.proxies:
+            p.stop()
+        self.rpc.stop()
+        return TailableProc.stop(self)
+
+    def get_proxy(self):
+        proxy = BitcoinRpcProxy(self)
+        self.proxies.append(proxy)
+        return proxy
+
     def generate_block(self, numblocks=1):
         # As of 0.16, generate() is removed; use generatetoaddress.
         return self.rpc.generatetoaddress(numblocks, self.rpc.getnewaddress())
 
 
 class LightningD(TailableProc):
-    def __init__(self, lightning_dir, bitcoind, port=9735, random_hsm=False, node_id=0):
+    def __init__(self, lightning_dir, bitcoindproxy, port=9735, random_hsm=False, node_id=0):
         TailableProc.__init__(self, lightning_dir)
         self.executable = 'lightningd/lightningd'
         self.lightning_dir = lightning_dir
@@ -319,7 +331,7 @@ class LightningD(TailableProc):
         self.cmd_prefix = []
         self.disconnect_file = None
 
-        self.rpcproxy = BitcoinRpcProxy(bitcoind)
+        self.rpcproxy = bitcoindproxy
 
         self.opts = LIGHTNINGD_CONFIG.copy()
         opts = {
@@ -384,7 +396,6 @@ class LightningD(TailableProc):
         not return before the timeout triggers.
         """
         self.proc.wait(timeout)
-        self.rpcproxy.stop()
         return self.proc.returncode
 
 
@@ -595,12 +606,25 @@ class LightningNode(object):
 
     # This waits until gossipd sees channel_update in both directions
     # (or for local channels, at least a local announcement)
-    def wait_for_routes(self, channel_ids):
+    def wait_for_channel_updates(self, scids):
         # Could happen in any order...
         self.daemon.wait_for_logs(['Received channel_update for channel {}/0'.format(c)
-                                   for c in channel_ids]
+                                   for c in scids]
                                   + ['Received channel_update for channel {}/1'.format(c)
-                                     for c in channel_ids])
+                                     for c in scids])
+
+    def wait_for_route(self, destination, timeout=30):
+        """ Wait for a route to the destination to become available.
+        """
+        start_time = time.time()
+        while time.time() < start_time + timeout:
+            try:
+                self.rpc.getroute(destination.info['id'], 1, 1)
+                return True
+            except Exception:
+                time.sleep(1)
+        if time.time() > start_time + timeout:
+            raise ValueError("Error waiting for a route to destination {}".format(destination))
 
     def pay(self, dst, amt, label=None):
         if not label:
@@ -743,7 +767,7 @@ class NodeFactory(object):
 
         socket_path = os.path.join(lightning_dir, "lightning-rpc").format(node_id)
         daemon = LightningD(
-            lightning_dir, self.bitcoind,
+            lightning_dir, bitcoindproxy=self.bitcoind.get_proxy(),
             port=port, random_hsm=random_hsm, node_id=node_id
         )
         # If we have a disconnect string, dump it to a file for daemon.
