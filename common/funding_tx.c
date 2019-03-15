@@ -116,12 +116,11 @@ struct bitcoin_tx *rgb_funding_tx(const tal_t *ctx,
 	proof->output[1].vout = 1;
     }
 
-    u8 *commitment_script;
-    rgb_proof_get_expected_script(proof, &commitment_script);
+    struct rgb_allocated_array_uint8_t commitment_script = rgb_proof_get_expected_script(proof);
 
     size_t commitment_output = change_satoshis != 0 ? 2 : 1;
     tx->output[commitment_output].amount = 0;
-    tx->output[commitment_output].script = commitment_script;
+    tx->output[commitment_output].script = commitment_script.ptr; // FIXME: is this NULL-terminated?
 
     *funding_proof = proof;
 

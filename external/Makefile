@@ -94,6 +94,7 @@ external/libbase58.a: external/base58.o
 external/libbacktrace/backtrace.h: submodcheck
 
 external/librgb.a:
+	./external/c-rgb/configure --enable-kaleidoscope --enable-bifrost
 	$(MAKE) -C external/c-rgb/ lib
 	cp external/c-rgb/target/debug/librgb.a external/librgb.a # TODO: replace with release target, from rgb-org instead of afilini
 

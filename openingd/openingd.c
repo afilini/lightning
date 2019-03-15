@@ -1111,12 +1111,11 @@ static u8 *rgb_funder_channel(struct state *state,
 		 type_to_string(tmpctx, struct pubkey,
 			 &state->our_funding_pubkey));
 
-    u8 *serialized_funding_proof;
-    u32 size = rgb_proof_serialize(input_proof, &serialized_funding_proof);
+    struct rgb_allocated_array_uint8_t serialized_funding_proof = rgb_proof_serialize(input_proof);
 
     // Little hack: wire functions need tal-allocated buffers
-    u8 *tal_serialized = tal_arr(tmpctx, u8, size);
-    memcpy(tal_serialized, serialized_funding_proof, size);
+    u8 *tal_serialized = tal_arr(tmpctx, u8, serialized_funding_proof.size);
+    memcpy(tal_serialized, serialized_funding_proof.ptr, serialized_funding_proof.size);
 
     /* Now we give our peer the signature for their first commitment
      * transaction. */
@@ -1780,7 +1779,7 @@ static u8 *rgb_fundee_channel(struct state *state, const u8 *open_channel_msg)
 		    &state->channel_id,
 		    "Parsing funding_created");
 
-    rgb_proof_deserialize(serialized_rgb_proof, tal_count(serialized_rgb_proof), state->funding_proof);
+    state->funding_proof = rgb_proof_deserialize(serialized_rgb_proof, tal_count(serialized_rgb_proof));
 
     // TODO(RGB): verify the input proof (we can't verify this one because the funding tx is still un-broadcasted)
 
@@ -2125,10 +2124,9 @@ static u8 *handle_master_in(struct state *state)
 					     &serialized_rgb_proof))
 			master_badmsg(WIRE_OPENING_FUNDER, msg);
 
-		rgb_proof_deserialize(
+		input_proof = rgb_proof_deserialize(
 			serialized_rgb_proof,
-			tal_count(serialized_rgb_proof),
-			input_proof);
+			tal_count(serialized_rgb_proof));
 
 		msg = rgb_funder_channel(state,
 				     change_satoshis,

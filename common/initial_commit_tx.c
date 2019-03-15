@@ -208,11 +208,10 @@ struct bitcoin_tx *initial_commit_tx(const tal_t *ctx, const struct bitcoin_txid
 	    proof->output[0].amount = rgb_amount;
 	    proof->output[0].vout = 0;
 
-	    u8 *commitment_script = NULL;
-	    rgb_proof_get_expected_script(proof, &commitment_script);
+	    struct rgb_allocated_array_uint8_t commitment_script = rgb_proof_get_expected_script(proof);
 
 	    tx->output[n].amount = 0;
-	    tx->output[n].script = commitment_script;
+	    tx->output[n].script = commitment_script.ptr; // FIXME: is this NULL-terminated?
 	}
 
 	/* BOLT #3:
