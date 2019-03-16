@@ -65,7 +65,7 @@ struct wallet *wallet_new(struct lightningd *ld,
 #define UTXO_FIELDS							\
 	"prev_out_tx, prev_out_index, value, type, status, keyindex, "	\
 	"channel_id, peer_id, commitment_point, confirmation_height, "	\
-	"spend_height"
+	"spend_height, is_rgb, rgb_proof"
 
 /* We actually use the db constraints to uniquify, so OK if this fails. */
 bool wallet_add_utxo(struct wallet *w, struct utxo *utxo,
@@ -75,7 +75,7 @@ bool wallet_add_utxo(struct wallet *w, struct utxo *utxo,
 
 	stmt = db_prepare(w->db, "INSERT INTO outputs ("
 			  UTXO_FIELDS
-			  ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);");
+			  ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);");
 	sqlite3_bind_blob(stmt, 1, &utxo->txid, sizeof(utxo->txid), SQLITE_TRANSIENT);
 	sqlite3_bind_int(stmt, 2, utxo->outnum);
 	sqlite3_bind_int64(stmt, 3, utxo->amount);
@@ -102,9 +102,33 @@ bool wallet_add_utxo(struct wallet *w, struct utxo *utxo,
 	else
 		sqlite3_bind_null(stmt, 11);
 
+    	sqlite3_bind_int(stmt, 12, utxo->is_rgb);
+    	if (utxo->is_rgb) {
+    	    struct rgb_allocated_array_uint8_t serialized = rgb_proof_serialize(utxo->rgb_proof);
+    	    sqlite3_bind_blob(stmt, 13, serialized.ptr, serialized.size, SQLITE_TRANSIENT);
+    	    rgb_free_array(serialized, struct rgb_allocated_array_uint8_t);
+    	} else {
+	    sqlite3_bind_null(stmt, 12);
+    	}
+
 	/* May fail if we already know about the tx, e.g., because
 	 * it's change or some internal tx. */
 	return db_exec_prepared_mayfail(w->db, stmt);
+}
+
+bool wallet_add_rgb_output(struct wallet *w, const struct bitcoin_txid *txid, const struct rgb_output_entry *entry) {
+    sqlite3_stmt *stmt;
+
+    stmt = db_prepare(w->db, "INSERT INTO rgb_outputs ("
+			     "asset_id, amount, txid, vout"
+	") VALUES (?, ?, ?, ?);");
+
+    sqlite3_bind_blob(stmt, 1, &entry->asset_id, sizeof(entry->asset_id), SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 2, entry->amount);
+    sqlite3_bind_blob(stmt, 3, txid, 32, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 4, entry->vout);
+
+    return db_exec_prepared_mayfail(w->db, stmt);
 }
 
 /**
@@ -1111,14 +1135,33 @@ int wallet_extract_owned_outputs(struct wallet *w, const struct bitcoin_tx *tx,
 				 const u32 *blockheight, u64 *total_satoshi)
 {
 	int num_utxos = 0;
+
+	struct bitcoin_txid txid;
+	bitcoin_txid(tx, &txid);
+
 	for (size_t output = 0; output < tal_count(tx->output); output++) {
 		struct utxo *utxo;
 		u32 index;
 		bool is_p2sh;
+		bool is_rgb = false;
+		struct rgb_proof *rgb_proof = NULL;
 
 		if (!wallet_can_spend(w, tx->output[output].script, &index,
 				      &is_p2sh))
 			continue;
+
+		struct rgb_bitcoin_outpoint rgb_utxo = {
+			.txid = *((struct rgb_sha256d*) &txid),
+			.vout = output
+		};
+
+		struct rgb_allocated_array_rgb_proof proofs = rgb_bifrost_get_proofs_for(w->ld->rgb_bifrost_server, &rgb_utxo);
+		if (proofs.size > 0) {
+		    // FIXME: use all the proofs, now we simplify to 1
+
+		    is_rgb = true;
+		    rgb_proof = proofs.ptr;
+		}
 
 		utxo = tal(w, struct utxo);
 		utxo->keyindex = index;
@@ -1132,8 +1175,26 @@ int wallet_extract_owned_outputs(struct wallet *w, const struct bitcoin_tx *tx,
 		utxo->blockheight = blockheight?blockheight:NULL;
 		utxo->spendheight = NULL;
 
-		log_debug(w->log, "Owning output %zu %"PRIu64" (%s) txid %s %s",
+		utxo->is_rgb = is_rgb;
+		utxo->rgb_proof = rgb_proof;
+
+		if (is_rgb) {
+		    // TODO: validate the proof
+
+		    for (size_t rgb_out = 0; rgb_out < rgb_proof->output_count; rgb_out++) {
+			if (rgb_proof->output[rgb_out].vout != output)
+			    continue;
+
+			printf("Amount: %d\n", rgb_proof->output[rgb_out].amount);
+			rgb_debug_sha256d(&rgb_proof->output[rgb_out].asset_id);
+
+			wallet_add_rgb_output(w, &txid, &rgb_proof->output[rgb_out]);
+		    }
+		}
+
+		log_debug(w->log, "Owning output %zu %"PRIu64" (%s %s) txid %s %s",
 			  output, tx->output[output].amount,
+			  is_rgb ? "RGB" : "VANILLA",
 			  is_p2sh ? "P2SH" : "SEGWIT",
 			  type_to_string(tmpctx, struct bitcoin_txid,
 					 &utxo->txid), blockheight ? "CONFIRMED" : "");

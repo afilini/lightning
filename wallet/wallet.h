@@ -274,6 +274,12 @@ bool wallet_add_utxo(struct wallet *w, struct utxo *utxo,
 		     enum wallet_output_type type);
 
 /**
+ * wallet_add_rgb_output - Save an RGB output
+ */
+bool wallet_add_rgb_output(struct wallet *w, const struct bitcoin_txid *txid,
+	const struct rgb_output_entry *entry);
+
+/**
  * wallet_confirm_tx - Confirm a tx which contains a UTXO.
  */
 void wallet_confirm_tx(struct wallet *w,

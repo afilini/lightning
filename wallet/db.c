@@ -356,6 +356,16 @@ char *dbmigrations[] = {
     ");",
     /* Add a direction for failed payments. */
     "ALTER TABLE payments ADD faildirection INTEGER;", /* erring_direction */
+    /* Store RGB proofs... */
+    "ALTER TABLE outputs ADD is_rgb INTEGER DEFAULT 0 NOT NULL;",
+    "ALTER TABLE outputs ADD rgb_proof BLOB DEFAULT NULL;",
+    /* ... and RGB outputs */
+    "CREATE TABLE rgb_outputs ("
+    "  asset_id BLOB NOT NULL"
+    ", amount INTEGER NOT NULL"
+    ", txid CHAR(64) REFERENCES transactions(id) ON DELETE CASCADE"
+    ", vout INTEGER"
+    ");",
     NULL,
 };
 

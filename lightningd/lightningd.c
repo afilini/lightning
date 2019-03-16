@@ -217,6 +217,9 @@ static struct lightningd *new_lightningd(const tal_t *ctx)
 	 */
 	ld->plugins = plugins_new(ld, ld->log_book, ld);
 
+	/* TODO: read this as config parameter */
+	ld->rgb_bifrost_server = "localhost:3000";
+
 	return ld;
 }
 

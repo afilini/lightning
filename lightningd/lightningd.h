@@ -186,6 +186,9 @@ struct lightningd {
 	/* If we want to debug a subdaemon/plugin. */
 	const char *dev_debug_subprocess;
 
+	/* Bifrost server */
+	const char *rgb_bifrost_server;
+
 #if DEVELOPER
 	/* If we have a --dev-disconnect file */
 	int dev_disconnect_fd;

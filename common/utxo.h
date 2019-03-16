@@ -7,6 +7,7 @@
 #include <ccan/short_types/short_types.h>
 #include <ccan/tal/tal.h>
 #include <stdbool.h>
+#include <rgb.h>
 
 struct ext_key;
 
@@ -34,6 +35,11 @@ struct utxo {
 
 	/* NULL if not spent yet, otherwise, the block the spending transaction is in */
 	const u32 *spendheight;
+
+	/* Is this an RGB output */
+	bool is_rgb;
+
+	struct rgb_proof *rgb_proof;
 };
 
 void towire_utxo(u8 **pptr, const struct utxo *utxo);
