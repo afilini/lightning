@@ -366,6 +366,7 @@ char *dbmigrations[] = {
     ", txid CHAR(64) REFERENCES transactions(id) ON DELETE CASCADE"
     ", vout INTEGER"
     ");",
+    "ALTER TABLE outputs ADD rgb_status INTEGER DEFAULT 0 NOT NULL;",
     NULL,
 };
 

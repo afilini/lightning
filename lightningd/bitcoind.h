@@ -98,6 +98,20 @@ void bitcoind_sendrawtx_(struct bitcoind *bitcoind,
 						int, const char *),	\
 			    (arg))
 
+void bitcoind_getrawtransaction_(struct bitcoind *bitcoind,
+				 const struct bitcoin_txid *txid,
+				 void (*cb)(struct bitcoind *bitcoind,
+					    struct bitcoin_tx *tx,
+					    void *arg),
+				 void *arg);
+#define bitcoind_getrawtransaction(bitcoind_, txid, cb, arg)		\
+	bitcoind_getrawtransaction_((bitcoind_), (txid),		\
+				typesafe_cb_preargs(void, void *,	\
+						    (cb), (arg),	\
+						    struct bitcoind *,	\
+						    struct bitcoin_tx *),	\
+				(arg))
+
 void bitcoind_getblockcount_(struct bitcoind *bitcoind,
 			     void (*cb)(struct bitcoind *bitcoind,
 					u32 blockcount,

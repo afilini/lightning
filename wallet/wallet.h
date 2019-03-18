@@ -15,6 +15,7 @@
 #include <lightningd/htlc_end.h>
 #include <lightningd/invoice.h>
 #include <lightningd/log.h>
+#include <lightningd/bitcoind.h>
 #include <onchaind/onchain_wire.h>
 #include <wally_bip32.h>
 #include <rgb.h>
@@ -44,6 +45,9 @@ struct wallet {
 	/* Filter matching all outpoints that might be a funding transaction on
 	 * the blockchain. This is currently all P2WSH outputs */
 	struct outpointfilter *utxoset_outpoints;
+
+	/* An instance of bitcoind used to validate RGB proofs */
+	struct bitcoind *bitcoind;
 };
 
 /* Possible states for tracked outputs in the database. Not sure yet
@@ -77,6 +81,32 @@ static inline enum output_status output_status_in_db(enum output_status s)
 		break;
 	}
 	fatal("%s: %u is invalid", __func__, s);
+}
+
+enum rgb_verification_status {
+    rgb_status_pending = 0,
+    rgb_status_confirmed = 1,
+    rgb_status_failed = 2,
+    rgb_status_any = 255
+};
+
+static inline enum rgb_verification_status output_rgb_status_in_db(enum rgb_verification_status s)
+{
+    switch (s) {
+	case rgb_status_pending:
+	    BUILD_ASSERT(rgb_status_pending == 0);
+	    return s;
+	case rgb_status_confirmed:
+	    BUILD_ASSERT(rgb_status_confirmed == 1);
+	    return s;
+	case rgb_status_failed:
+	    BUILD_ASSERT(rgb_status_failed == 2);
+	    return s;
+	    /* This one doesn't go into db */
+	case rgb_status_any:
+	    break;
+    }
+    fatal("%s: %u is invalid", __func__, s);
 }
 
 /* Enumeration of all known output types. These include all types that
@@ -349,6 +379,8 @@ const struct utxo **wallet_select_all(const tal_t *ctx, struct wallet *w,
  * the reservation.
  */
 void wallet_confirm_utxos(struct wallet *w, const struct utxo **utxos);
+
+bool wallet_update_rgb_proof(struct wallet *w, struct utxo *utxo, enum rgb_verification_status new_status);
 
 /**
  * wallet_can_spend - Do we have the private key matching this scriptpubkey?

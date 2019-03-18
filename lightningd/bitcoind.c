@@ -477,6 +477,38 @@ void bitcoind_getrawblock_(struct bitcoind *bitcoind,
 			  "getblock", hex, "false", NULL);
 }
 
+static bool process_getrawtransaction(struct bitcoin_cli *bcli)
+{
+    void (*cb)(struct bitcoind *bitcoind,
+	       const struct bitcoin_tx *tx,
+	       void *arg) = bcli->cb;
+
+    if (/**bcli->exitstatus != 0 || */ bcli->output_bytes == 0) {
+	log_debug(bcli->bitcoind->log, "%s: invalid txid",
+		  bcli_args(tmpctx, bcli));
+	cb(bcli->bitcoind, NULL, bcli->cb_arg);
+	return true;
+    }
+
+    struct bitcoin_tx *tx = bitcoin_tx_from_hex(bcli, bcli->output, bcli->output_bytes);
+
+    cb(bcli->bitcoind, tx, bcli->cb_arg);
+    return true;
+}
+
+void bitcoind_getrawtransaction_(struct bitcoind *bitcoind,
+			   const struct bitcoin_txid *txid,
+			   void (*cb)(struct bitcoind *bitcoind,
+				      struct bitcoin_tx *tx,
+				      void *arg),
+			   void *arg)
+{
+    start_bitcoin_cli(bitcoind, NULL, process_getrawtransaction, false,
+		      BITCOIND_HIGH_PRIO,
+		      cb, arg,
+		      "getrawtransaction", take(type_to_string(NULL, struct bitcoin_txid, txid)), "false");
+}
+
 static bool process_getblockcount(struct bitcoin_cli *bcli)
 {
 	u32 blockcount;

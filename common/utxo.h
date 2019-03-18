@@ -40,6 +40,8 @@ struct utxo {
 	bool is_rgb;
 
 	struct rgb_proof *rgb_proof;
+
+	u8 rgb_status;
 };
 
 void towire_utxo(u8 **pptr, const struct utxo *utxo);
