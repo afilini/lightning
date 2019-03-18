@@ -1421,8 +1421,6 @@ static struct io_plan *handle_sign_funding_tx(struct io_conn *conn,
 			    &_dummy);
 	}
 
-	printf("From hsmd: %s\n", tal_hex(tmpctx, linearize_tx(tmpctx, tx)));
-
 	sign_all_inputs(tx, utxos);
 	return req_reply(conn, c, take(towire_hsm_sign_funding_reply(NULL, tx)));
 }
