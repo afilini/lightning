@@ -168,6 +168,16 @@ static struct utxo *wallet_stmt2output(const tal_t *ctx, sqlite3_stmt *stmt)
 		utxo->spendheight = spendheight;
 	}
 
+	utxo->rgb_proof = NULL;
+	utxo->is_rgb = sqlite3_column_int(stmt, 11);
+
+	if (utxo->is_rgb) {
+	    const u8 *src = sqlite3_column_blob(stmt, 12);
+	    size_t len = sqlite3_column_bytes(stmt, 12);
+
+	    utxo->rgb_proof = rgb_proof_deserialize(src, len);
+	}
+
 	return utxo;
 }
 
@@ -273,13 +283,44 @@ void wallet_confirm_utxos(struct wallet *w, const struct utxo **utxos)
 	}
 }
 
+static bool cmp_asset_id(const void *a, const void *b) {
+    return memcmp(a, b, 20) == 0;
+}
+
+// TODO: multiple assets to the same output are not supported
+static u32 extract_rgb_amounts(const struct rgb_proof *p, u32 vout, const struct sha256 *asset_id) {
+    u32 result = 0;
+
+    for (size_t i = 0; i < p->output_count; i++) {
+        if (p->output[i].vout != vout)
+	    continue;
+
+        if (!cmp_asset_id(asset_id, &p->output[i].asset_id))
+	    continue;
+
+	result += p->output[i].amount;
+    }
+
+    return result;
+}
+
+/*
+ * TODO: at the moment we only select rgb outputs for rgb txs and non-rgb output
+ * for non-rgb txs. The logic here should be improved to select the other "kind"
+ * of output if necessary (for instance, to pay fees or to get to an higher bitcoin
+ * amount). We can always send rgb assets back as change if needed.
+ */
 static const struct utxo **wallet_select(const tal_t *ctx, struct wallet *w,
 					 const u64 value,
 					 const u32 feerate_per_kw,
 					 size_t outscriptlen,
 					 bool may_have_change,
 					 u64 *satoshi_in,
-					 u64 *fee_estimate)
+					 u64 *fee_estimate,
+					 bool select_rgb,
+					 const struct sha256 *asset_id,
+					 const u32 rgb_amount,
+					 u32 *rgb_in)
 {
 	size_t i = 0;
 	struct utxo **available;
@@ -297,12 +338,26 @@ static const struct utxo **wallet_select(const tal_t *ctx, struct wallet *w,
 	if (may_have_change)
 		weight += (8 + 1 + BITCOIN_SCRIPTPUBKEY_P2WPKH_LEN) * 4;
 
+	/* We select RGB output, so we are also going to commit to a proof */
+	if (select_rgb)
+	    weight += (8 + 1 + BITCOIN_RGB_OP_RETURN_LEN) * 4;
+
 	*fee_estimate = 0;
 	*satoshi_in = 0;
+	*rgb_in = 0;
 
 	available = wallet_get_utxos(ctx, w, output_state_available);
 
 	for (i = 0; i < tal_count(available); i++) {
+	    	if ((select_rgb && !available[i]->is_rgb) ||
+			(!select_rgb && available[i]->is_rgb))
+	    	    continue;
+
+	    	// This is an RGB output, but we have 0 of the asset we are looking for
+	    	if (select_rgb && extract_rgb_amounts(available[i]->rgb_proof, available[i]->outnum, asset_id) == 0) {
+		    continue;
+	    	}
+
 		size_t input_weight;
 		struct utxo *u = tal_steal(utxos, available[i]);
 
@@ -329,8 +384,12 @@ static const struct utxo **wallet_select(const tal_t *ctx, struct wallet *w,
 		weight += input_weight;
 
 		*fee_estimate = weight * feerate_per_kw / 1000;
-		*satoshi_in += utxos[i]->amount;
-		if (*satoshi_in >= *fee_estimate + value)
+		*satoshi_in += u->amount;
+		if (select_rgb) {
+		    *rgb_in += extract_rgb_amounts(available[i]->rgb_proof, available[i]->outnum, asset_id);
+		}
+
+	    	if (*rgb_in >= rgb_amount && *satoshi_in >= *fee_estimate + value)
 			break;
 	}
 	tal_free(available);
@@ -345,11 +404,13 @@ const struct utxo **wallet_select_coins(const tal_t *ctx, struct wallet *w,
 					u64 *fee_estimate, u64 *changesatoshi)
 {
 	u64 satoshi_in;
+	u32 dummy_rgb_in;
 	const struct utxo **utxo;
 
 	utxo = wallet_select(ctx, w, value, feerate_per_kw,
 			     outscriptlen, true,
-			     &satoshi_in, fee_estimate);
+			     &satoshi_in, fee_estimate,
+			     false, NULL, 0, &dummy_rgb_in);
 
 	/* Couldn't afford it? */
 	if (satoshi_in < *fee_estimate + value)
@@ -359,6 +420,31 @@ const struct utxo **wallet_select_coins(const tal_t *ctx, struct wallet *w,
 	return utxo;
 }
 
+const struct utxo **wallet_rgb_select_coins(const tal_t *ctx, struct wallet *w,
+					const u64 value,
+					const u32 feerate_per_kw,
+					size_t outscriptlen,
+					u64 *fee_estimate, u64 *changesatoshi,
+					const struct sha256 *asset_id, u32 rgb_value, u32 *rgb_change)
+{
+    u64 satoshi_in;
+    u32 rgb_in;
+    const struct utxo **utxo;
+
+    utxo = wallet_select(ctx, w, value, feerate_per_kw,
+			 outscriptlen, true,
+			 &satoshi_in, fee_estimate,
+			 true, asset_id, rgb_value, &rgb_in);
+
+    /* Couldn't afford it? */
+    if (satoshi_in < *fee_estimate + value || rgb_in < rgb_value)
+	return tal_free(utxo);
+
+    *changesatoshi = satoshi_in - value - *fee_estimate;
+    *rgb_change = rgb_in - rgb_value;
+    return utxo;
+}
+
 const struct utxo **wallet_select_all(const tal_t *ctx, struct wallet *w,
 				      const u32 feerate_per_kw,
 				      size_t outscriptlen,
@@ -366,12 +452,14 @@ const struct utxo **wallet_select_all(const tal_t *ctx, struct wallet *w,
 				      u64 *fee_estimate)
 {
 	u64 satoshi_in;
+	u32 dummy_rgb_in;
 	const struct utxo **utxo;
 
 	/* Huge value, but won't overflow on addition */
 	utxo = wallet_select(ctx, w, (1ULL << 56), feerate_per_kw,
 			     outscriptlen, false,
-			     &satoshi_in, fee_estimate);
+			     &satoshi_in, fee_estimate,
+			     false, NULL, 0, &dummy_rgb_in);
 
 	/* Can't afford fees? */
 	if (*fee_estimate > satoshi_in)

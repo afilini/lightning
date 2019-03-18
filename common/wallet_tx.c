@@ -11,6 +11,9 @@ void wtx_init(struct command *cmd, struct wallet_tx * wtx)
 	wtx->change_key_index = 0;
 	wtx->utxos = NULL;
 	wtx->all_funds = false;
+	wtx->is_rgb = false;
+	wtx->rgb_amount = 0;
+	wtx->rgb_change = 0;
 }
 
 static struct command_result *check_amount(const struct wallet_tx *tx,
@@ -32,6 +35,8 @@ struct command_result *wtx_select_utxos(struct wallet_tx *tx,
 					u32 fee_rate_per_kw,
 					size_t out_len)
 {
+    	assert(!tx->is_rgb);
+
 	struct command_result *res;
 	u64 fee_estimate;
 	if (tx->all_funds) {
@@ -69,5 +74,35 @@ struct command_result *wtx_select_utxos(struct wallet_tx *tx,
 	} else {
 		tx->change_key_index = wallet_get_newindex(tx->cmd->ld);
 	}
+	return NULL;
+}
+
+struct command_result *wtx_rgb_select_utxos(struct wallet_tx *tx,
+					u32 fee_rate_per_kw,
+					size_t out_len)
+{
+	assert(tx->is_rgb);
+
+	struct command_result *res;
+	u64 fee_estimate;
+
+
+
+	tx->utxos = wallet_rgb_select_coins(tx->cmd, tx->cmd->ld->wallet,
+					tx->amount,
+					fee_rate_per_kw, out_len,
+					&fee_estimate, &tx->change,
+					&tx->asset_id, tx->rgb_amount, &tx->rgb_change);
+	res = check_amount(tx, tx->amount); // TODO: also check the asset amount
+	if (res)
+	    return res;
+
+	if (tx->change < 546) {
+	    tx->change = 0;
+	    tx->change_key_index = 0;
+	} else {
+	    tx->change_key_index = wallet_get_newindex(tx->cmd->ld);
+	}
+
 	return NULL;
 }

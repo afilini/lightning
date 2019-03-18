@@ -44,6 +44,13 @@ hsm_sign_funding,,our_pubkey,struct pubkey
 hsm_sign_funding,,their_pubkey,struct pubkey
 hsm_sign_funding,,num_inputs,u16
 hsm_sign_funding,,inputs,num_inputs*struct utxo
+#include <rgb.h>
+hsm_sign_funding,,is_rgb,u8
+hsm_sign_funding,,asset_id,struct sha256
+hsm_sign_funding,,rgb_amount,u32
+hsm_sign_funding,,rgb_change,u32
+hsm_sign_funding,,rgb_proof_size,u16
+hsm_sign_funding,,rgb_proof,rgb_proof_size*u8
 
 hsm_sign_funding_reply,104
 hsm_sign_funding_reply,,tx,struct bitcoin_tx

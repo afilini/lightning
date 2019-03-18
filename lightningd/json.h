@@ -10,6 +10,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <rgb.h>
 
 #define JSMN_STRICT 1
 # include <external/jsmn/jsmn.h>
@@ -45,6 +46,10 @@ void json_add_txid(struct json_stream *result, const char *fieldname,
 struct command_result *param_pubkey(struct command *cmd, const char *name,
 				    const char *buffer, const jsmntok_t *tok,
 				    struct pubkey **pubkey);
+
+struct command_result *param_asset_id(struct command *cmd, const char *name,
+				      const char *buffer, const jsmntok_t *tok,
+				      struct rgb_sha256d **asset_id);
 
 struct command_result *param_short_channel_id(struct command *cmd,
 					      const char *name,

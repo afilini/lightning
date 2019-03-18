@@ -1371,11 +1371,19 @@ static struct io_plan *handle_sign_funding_tx(struct io_conn *conn,
 	u16 outnum;
 	struct pubkey *changekey;
 
+	u8 is_rgb;
+	struct sha256 asset_id;
+	u32 rgb_amount;
+	u32 rgb_change;
+	u8 *serialized_proof;
+
 	/* FIXME: Check fee is "reasonable" */
 	if (!fromwire_hsm_sign_funding(tmpctx, msg_in,
 				       &satoshi_out, &change_out,
 				       &change_keyindex, &local_pubkey,
-				       &remote_pubkey, &utxos))
+				       &remote_pubkey, &utxos,
+				       &is_rgb, &asset_id, &rgb_amount, &rgb_change,
+				       &serialized_proof))
 		return bad_req(conn, c, msg_in);
 
 	if (change_out) {
@@ -1384,16 +1392,36 @@ static struct io_plan *handle_sign_funding_tx(struct io_conn *conn,
 	} else
 		changekey = NULL;
 
-	tx = funding_tx(tmpctx, &outnum,
-			/*~ For simplicity, our generated code is not const
-			 * correct.  The C rules around const and
-			 * pointer-to-pointer are a bit weird, so we use
-			 * ccan/cast which ensures the type is correct and
-			 * we're not casting something random */
-			cast_const2(const struct utxo **, utxos),
-			satoshi_out, &local_pubkey, &remote_pubkey,
-			change_out, changekey,
-			NULL);
+	if (!is_rgb) {
+	    tx = funding_tx(tmpctx, &outnum,
+		    /*~ For simplicity, our generated code is not const
+		     * correct.  The C rules around const and
+		     * pointer-to-pointer are a bit weird, so we use
+		     * ccan/cast which ensures the type is correct and
+		     * we're not casting something random */
+			    cast_const2(const struct utxo **, utxos),
+			    satoshi_out, &local_pubkey, &remote_pubkey,
+			    change_out, changekey,
+			    NULL);
+	} else {
+	    struct rgb_proof *funding_proof = rgb_proof_deserialize(serialized_proof, tal_count(serialized_proof));
+
+	    struct rgb_proof *_dummy;
+	    tx = rgb_funding_tx(tmpctx, &outnum,
+		    /*~ For simplicity, our generated code is not const
+		     * correct.  The C rules around const and
+		     * pointer-to-pointer are a bit weird, so we use
+		     * ccan/cast which ensures the type is correct and
+		     * we're not casting something random */
+			    cast_const2(const struct utxo **, utxos),
+			    satoshi_out, &local_pubkey, &remote_pubkey,
+			    change_out, changekey,
+			    NULL,
+			    asset_id, rgb_amount, rgb_change, funding_proof,
+			    &_dummy);
+	}
+
+	printf("From hsmd: %s\n", tal_hex(tmpctx, linearize_tx(tmpctx, tx)));
 
 	sign_all_inputs(tx, utxos);
 	return req_reply(conn, c, take(towire_hsm_sign_funding_reply(NULL, tx)));

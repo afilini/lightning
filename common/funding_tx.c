@@ -76,13 +76,14 @@ struct bitcoin_tx *rgb_funding_tx(const tal_t *ctx,
     tal_free(wscript);
 
     if (change_satoshis != 0) {
-	const void *map[2];
-	map[0] = int2ptr(0);
-	map[1] = int2ptr(1);
+	//const void *map[2];
+	//map[0] = int2ptr(0);
+	//map[1] = int2ptr(1);
 	tx->output[1].script = scriptpubkey_p2wpkh(tx, changekey);
 	tx->output[1].amount = change_satoshis;
-	permute_outputs(tx->output, NULL, map);
-	*outnum = (map[0] == int2ptr(0) ? 0 : 1);
+	//permute_outputs(tx->output, NULL, map);
+	//*outnum = (map[0] == int2ptr(0) ? 0 : 1);
+	*outnum = 0;
     } else {
 	*outnum = 0;
     }
@@ -104,7 +105,8 @@ struct bitcoin_tx *rgb_funding_tx(const tal_t *ctx,
     proof->input_count = 1;
     proof->input = (struct rgb_proof*) input_proof;
 
-    proof->output = tal_arr(ctx, struct rgb_output_entry, rgb_change ? 2 : 1);
+    proof->output_count = rgb_change ? 2 : 1;
+    proof->output = tal_arr(ctx, struct rgb_output_entry, proof->output_count);
 
     memcpy(&proof->output[0].asset_id, &asset_id, 32);
     proof->output[0].amount = rgb_amount;
@@ -117,10 +119,12 @@ struct bitcoin_tx *rgb_funding_tx(const tal_t *ctx,
     }
 
     struct rgb_allocated_array_uint8_t commitment_script = rgb_proof_get_expected_script(proof);
+    u8 *tal_script = tal_arr(ctx, u8, commitment_script.size);
+    memcpy(tal_script, commitment_script.ptr, commitment_script.size);
 
     size_t commitment_output = change_satoshis != 0 ? 2 : 1;
     tx->output[commitment_output].amount = 0;
-    tx->output[commitment_output].script = commitment_script.ptr; // FIXME: is this NULL-terminated?
+    tx->output[commitment_output].script = tal_script;
 
     *funding_proof = proof;
 

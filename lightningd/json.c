@@ -19,6 +19,7 @@
 #include <sys/socket.h>
 #include <wallet/wallet.h>
 #include <wire/wire.h>
+#include <rgb.h>
 
 /* Output a route hop */
 static void
@@ -80,6 +81,20 @@ struct command_result *param_pubkey(struct command *cmd, const char *name,
 			    "'%s' should be a pubkey, not '%.*s'",
 			    name, json_tok_full_len(tok),
 			    json_tok_full(buffer, tok));
+}
+
+struct command_result *param_asset_id(struct command *cmd, const char *name,
+				    const char *buffer, const jsmntok_t *tok,
+				    struct rgb_sha256d **asset_id)
+{
+    *asset_id = tal(cmd, struct rgb_sha256d);
+    if (json_to_asset_id(buffer, tok, *asset_id))
+	return NULL;
+
+    return command_fail(cmd, JSONRPC2_INVALID_PARAMS,
+			"'%s' should be an asset_id, not '%.*s'",
+			name, json_tok_full_len(tok),
+			json_tok_full(buffer, tok));
 }
 
 void json_add_short_channel_id(struct json_stream *response,

@@ -5,6 +5,7 @@
 #include <lightningd/json.h>
 #include <lightningd/jsonrpc.h>
 #include <lightningd/lightningd.h>
+#include <rgb.h>
 
 /* A specification of funds in the wallet used for funding channels and
  * withdrawal.
@@ -17,10 +18,19 @@ struct wallet_tx {
 	const struct utxo **utxos;
 
 	bool all_funds; /* In this case, amount is a maximum. */
+	bool is_rgb;
+
+	struct sha256 asset_id;
+	u32 rgb_amount;
+	u32 rgb_change;
 };
 
 void wtx_init(struct command *cmd, struct wallet_tx *wtx);
 struct command_result *wtx_select_utxos(struct wallet_tx *tx,
 					u32 fee_rate_per_kw,
 					size_t out_len);
+
+struct command_result *wtx_rgb_select_utxos(struct wallet_tx *tx,
+					    u32 fee_rate_per_kw,
+					    size_t out_len);
 #endif /* LIGHTNING_COMMON_WALLET_TX_H */

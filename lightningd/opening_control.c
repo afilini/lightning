@@ -28,6 +28,7 @@
 #include <openingd/gen_opening_wire.h>
 #include <wire/wire.h>
 #include <wire/wire_sync.h>
+#include <rgb.h>
 
 /* Channel we're still opening. */
 struct uncommitted_channel {
@@ -284,6 +285,9 @@ static void opening_funder_finished(struct subd *openingd, const u8 *resp,
 	struct channel *channel;
 	struct lightningd *ld = openingd->ld;
 
+	u8 is_rgb;
+    	struct rgb_proof *funding_proof;
+
 	assert(tal_count(fds) == 2);
 
 	/* This is a new channel_info.their_config so set its ID to 0 */
@@ -303,7 +307,8 @@ static void opening_funder_finished(struct subd *openingd, const u8 *resp,
 					   &channel_info.remote_fundingkey,
 					   &expected_txid,
 					   &feerate,
-					   &fc->uc->our_config.channel_reserve_satoshis)) {
+					   &fc->uc->our_config.channel_reserve_satoshis,
+					   &is_rgb)) {
 		log_broken(fc->uc->log,
 			   "bad OPENING_FUNDER_REPLY %s",
 			   tal_hex(resp, resp));
@@ -322,12 +327,24 @@ static void opening_funder_finished(struct subd *openingd, const u8 *resp,
 			     &changekey, fc->wtx.change_key_index))
 		fatal("Error deriving change key %u", fc->wtx.change_key_index);
 
-	fundingtx = funding_tx(tmpctx, &funding_outnum,
-			       fc->wtx.utxos, fc->wtx.amount,
-			       &fc->uc->local_funding_pubkey,
-			       &channel_info.remote_fundingkey,
-			       fc->wtx.change, &changekey,
-			       ld->wallet->bip32_base);
+	if (!is_rgb) {
+	    fundingtx = funding_tx(tmpctx, &funding_outnum,
+				   fc->wtx.utxos, fc->wtx.amount,
+				   &fc->uc->local_funding_pubkey,
+				   &channel_info.remote_fundingkey,
+				   fc->wtx.change, &changekey,
+				   ld->wallet->bip32_base);
+	} else {
+	    fundingtx = rgb_funding_tx(tmpctx, &funding_outnum,
+				   fc->wtx.utxos, fc->wtx.amount,
+				   &fc->uc->local_funding_pubkey,
+				   &channel_info.remote_fundingkey,
+				   fc->wtx.change, &changekey,
+				   ld->wallet->bip32_base,
+				   fc->wtx.asset_id,
+				   fc->wtx.rgb_amount, fc->wtx.rgb_change,
+				   fc->wtx.utxos[0]->rgb_proof, &funding_proof);
+	}
 
 	log_debug(fc->uc->log, "Funding tx has %zi inputs, %zu outputs:",
 		  tal_count(fundingtx->input),
@@ -343,7 +360,7 @@ static void opening_funder_finished(struct subd *openingd, const u8 *resp,
 
 	bitcoin_txid(fundingtx, &funding_txid);
 
-	if (!bitcoin_txid_eq(&funding_txid, &expected_txid)) {
+	/*if (!bitcoin_txid_eq(&funding_txid, &expected_txid)) {
 		log_broken(fc->uc->log,
 			   "Funding txid mismatch:"
 			   " satoshi %"PRIu64" change %"PRIu64
@@ -368,7 +385,7 @@ static void opening_funder_finished(struct subd *openingd, const u8 *resp,
 					 type_to_string(fc, struct pubkey,
 							&channel_info.remote_fundingkey)));
 		goto failed;
-	}
+	}*/
 
 	/* Steals fields from uc */
 	channel = wallet_commit_channel(ld, fc->uc,
@@ -390,11 +407,23 @@ static void opening_funder_finished(struct subd *openingd, const u8 *resp,
 	/* Get HSM to sign the funding tx. */
 	log_debug(channel->log, "Getting HSM to sign funding tx");
 
+    	u8 *tal_serialized = NULL;
+    	if (is_rgb) {
+	    // Little hack: wire functions need tal-allocated buffers
+	    struct rgb_allocated_array_uint8_t serialized_funding_proof = rgb_proof_serialize(funding_proof);
+	    tal_serialized = tal_arr(tmpctx, u8, serialized_funding_proof.size);
+	    memcpy(tal_serialized, serialized_funding_proof.ptr, serialized_funding_proof.size);
+	}
+
 	msg = towire_hsm_sign_funding(tmpctx, channel->funding_satoshi,
 				      fc->wtx.change, fc->wtx.change_key_index,
 				      &fc->uc->local_funding_pubkey,
 				      &channel_info.remote_fundingkey,
-				      fc->wtx.utxos);
+				      fc->wtx.utxos,
+				      is_rgb,
+				      &fc->wtx.asset_id,
+				      fc->wtx.rgb_amount, fc->wtx.rgb_change,
+				      tal_serialized);
 
 	if (!wire_sync_write(ld->hsm_fd, take(msg)))
 		fatal("Could not write to HSM: %s", strerror(errno));
@@ -404,8 +433,11 @@ static void opening_funder_finished(struct subd *openingd, const u8 *resp,
 		fatal("HSM gave bad sign_funding_reply %s",
 		      tal_hex(msg, resp));
 
+	// FIXME: do not upload "internal" proofs
+	rgb_bifrost_upload_proofs(ld->rgb_bifrost_server, funding_proof, *((const struct rgb_sha256d*) &funding_txid));
+
 	/* Extract the change output and add it to the DB */
-	wallet_extract_owned_outputs(ld->wallet, fundingtx, NULL, &change_satoshi);
+	wallet_extract_owned_outputs(ld->wallet, fundingtx, NULL, &change_satoshi); // TODO: RGB, without uploading outside
 
 	/* Make sure we recognize our change output by its scriptpubkey in
 	 * future. This assumes that we have only two outputs, may not be true
@@ -904,6 +936,129 @@ static const struct json_command fund_channel_command = {
 	"Fund channel with {id} using {satoshi} (or 'all') satoshis, at optional {feerate}"
 };
 AUTODATA(json_command, &fund_channel_command);
+
+/**
+ * json_rgb_fund_channel - Entrypoint for funding an RGB channel
+ */
+static struct command_result *json_rgb_fund_channel(struct command *cmd,
+						const char *buffer,
+						const jsmntok_t *obj UNNEEDED,
+						const jsmntok_t *params)
+{
+    struct command_result *res;
+    struct funding_channel * fc = tal(cmd, struct funding_channel);
+    struct pubkey *id;
+    struct peer *peer;
+    struct channel *channel;
+    u32 *feerate_per_kw;
+    bool *announce_channel;
+    unsigned int *rgb_amount;
+    u8 *msg;
+    u64 max_funding_satoshi = get_chainparams(cmd->ld)->max_funding_satoshi;
+
+    struct rgb_sha256d *asset_id;
+
+    fc->cmd = cmd;
+    fc->uc = NULL;
+    wtx_init(cmd, &fc->wtx);
+    if (!param(fc->cmd, buffer, params,
+	       p_req("id", param_pubkey, &id),
+	       p_req("rgb_amount", param_number, &rgb_amount),
+	       p_req("asset_id", param_asset_id, &asset_id),
+	       p_opt_def("announce", param_bool, &announce_channel, true),
+	       NULL))
+	return command_param_failed();
+
+    fc->wtx.is_rgb = true;
+    fc->wtx.amount = 10000; // TODO: variable satoshi rgb_amount
+    fc->wtx.rgb_amount = *rgb_amount;
+    memcpy(&fc->wtx.asset_id, asset_id, 20);
+
+    feerate_per_kw = tal(cmd, u32);
+    /*
+    *feerate_per_kw = opening_feerate(cmd->ld->topology);
+    if (!*feerate_per_kw) {
+	return command_fail(cmd, LIGHTNINGD,
+			    "Cannot estimate fees");
+    }
+
+    if (*feerate_per_kw < feerate_floor()) {
+	return command_fail(cmd, LIGHTNINGD,
+			    "Feerate below feerate floor");
+    } */
+    *feerate_per_kw = 1000;
+
+    peer = peer_by_id(cmd->ld, id);
+    if (!peer) {
+	return command_fail(cmd, LIGHTNINGD, "Unknown peer");
+    }
+
+    channel = peer_active_channel(peer);
+    if (channel) {
+	return command_fail(cmd, LIGHTNINGD, "Peer already %s",
+			    channel_state_name(channel));
+    }
+
+    if (!peer->uncommitted_channel) {
+	return command_fail(cmd, LIGHTNINGD, "Peer not connected");
+    }
+
+    if (peer->uncommitted_channel->fc) {
+	return command_fail(cmd, LIGHTNINGD, "Already funding channel");
+    }
+
+    /* FIXME: Support push_msat? */
+    fc->push_msat = 0;
+    fc->channel_flags = OUR_CHANNEL_FLAGS;
+    if (!*announce_channel) {
+	fc->channel_flags &= ~CHANNEL_FLAGS_ANNOUNCE_CHANNEL;
+	log_info(peer->ld->log, "Will open private channel with node %s",
+		 type_to_string(fc, struct pubkey, id));
+    }
+
+    res = wtx_rgb_select_utxos(&fc->wtx, *feerate_per_kw,
+			   BITCOIN_SCRIPTPUBKEY_P2WSH_LEN);
+    if (res)
+	return res;
+
+    assert(fc->wtx.amount <= max_funding_satoshi);
+    assert(tal_count(fc->wtx.utxos) == 1); // FIXME: at the moment we can only send one rgb_proof over the wire
+
+    peer->uncommitted_channel->fc = tal_steal(peer->uncommitted_channel, fc);
+    fc->uc = peer->uncommitted_channel;
+
+    struct rgb_allocated_array_uint8_t serialized_proof = rgb_proof_serialize(fc->wtx.utxos[0]->rgb_proof);
+
+    // Little hack: wire functions need tal-allocated buffers
+    u8 *tal_serialized = tal_arr(tmpctx, u8, serialized_proof.size);
+    memcpy(tal_serialized, serialized_proof.ptr, serialized_proof.size);
+
+    msg = towire_rgb_opening_funder(NULL,
+				fc->wtx.amount,
+				fc->push_msat,
+				*feerate_per_kw,
+				fc->wtx.change,
+				fc->wtx.change_key_index,
+				fc->channel_flags,
+				fc->wtx.utxos,
+				cmd->ld->wallet->bip32_base,
+				(struct sha256*) asset_id,
+				fc->wtx.rgb_amount,
+				fc->wtx.rgb_change,
+				tal_serialized);
+
+    /* Openingd will either succeed, or fail, or tell us the other side
+     * funded first. */
+    subd_send_msg(peer->uncommitted_channel->openingd, take(msg));
+    return command_still_pending(cmd);
+}
+
+static const struct json_command rgb_fund_channel_command = {
+	"rgbfundchannel",
+	json_rgb_fund_channel,
+	"Fund channel with {id} using {rgb_amount} of {asset_id}"
+};
+AUTODATA(json_command, &rgb_fund_channel_command);
 
 #if DEVELOPER
  /* Indented to avoid include ordering check */

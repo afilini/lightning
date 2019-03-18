@@ -17,6 +17,7 @@
 #include <lightningd/log.h>
 #include <onchaind/onchain_wire.h>
 #include <wally_bip32.h>
+#include <rgb.h>
 
 enum onion_type;
 struct invoices;
@@ -326,6 +327,13 @@ const struct utxo **wallet_select_coins(const tal_t *ctx, struct wallet *w,
 					size_t outscriptlen,
 					u64 *fee_estimate,
 					u64 *change_satoshi);
+
+const struct utxo **wallet_rgb_select_coins(const tal_t *ctx, struct wallet *w,
+					    const u64 value,
+					    const u32 feerate_per_kw,
+					    size_t outscriptlen,
+					    u64 *fee_estimate, u64 *changesatoshi,
+					    const struct sha256 *asset_id, u32 rgb_value, u32 *rgb_change);
 
 const struct utxo **wallet_select_all(const tal_t *ctx, struct wallet *w,
 					const u32 feerate_per_kw,

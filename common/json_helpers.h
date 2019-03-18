@@ -3,6 +3,7 @@
 #define LIGHTNING_COMMON_JSON_HELPERS_H
 #include "config.h"
 #include <common/json.h>
+#include <rgb.h>
 
 struct pubkey;
 struct short_channel_id;
@@ -19,5 +20,9 @@ bool json_to_bitcoin_amount(const char *buffer, const jsmntok_t *tok,
 bool json_to_short_channel_id(const char *buffer, const jsmntok_t *tok,
 			      struct short_channel_id *scid,
 			      bool may_be_deprecated_form);
+
+/* Extract an asset_id from this */
+bool json_to_asset_id(const char *buffer, const jsmntok_t *tok,
+		      struct rgb_sha256d *asset_id);
 
 #endif /* LIGHTNING_COMMON_JSON_HELPERS_H */

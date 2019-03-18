@@ -202,6 +202,7 @@ struct bitcoin_tx *initial_commit_tx(const tal_t *ctx, const struct bitcoin_txid
 	    proof->input_count = 1;
 	    proof->input = (struct rgb_proof*) funding_proof;
 
+	    proof->output_count = 1;
 	    proof->output = tal_arr(ctx, struct rgb_output_entry, 1);
 
 	    memcpy(&proof->output[0].asset_id, &asset_id, 32);
@@ -209,9 +210,11 @@ struct bitcoin_tx *initial_commit_tx(const tal_t *ctx, const struct bitcoin_txid
 	    proof->output[0].vout = 0;
 
 	    struct rgb_allocated_array_uint8_t commitment_script = rgb_proof_get_expected_script(proof);
+	    u8 *tal_script = tal_arr(ctx, u8, commitment_script.size);
+	    memcpy(tal_script, commitment_script.ptr, commitment_script.size);
 
 	    tx->output[n].amount = 0;
-	    tx->output[n].script = commitment_script.ptr; // FIXME: is this NULL-terminated?
+	    tx->output[n].script = tal_script;
 	}
 
 	/* BOLT #3:

@@ -812,7 +812,8 @@ static u8 *funder_channel(struct state *state,
 					   &their_funding_pubkey,
 					   &state->funding_txid,
 					   state->feerate_per_kw,
-					   state->localconf.channel_reserve_satoshis);
+					   state->localconf.channel_reserve_satoshis,
+					   false);
 
 fail:
 	if (taken(utxos))
@@ -1033,8 +1034,6 @@ static u8 *rgb_funder_channel(struct state *state,
 			 input_proof, &state->funding_proof);
     bitcoin_txid(funding, &state->funding_txid);
 
-    // FIXME(RGB): store the funding_proof in the database
-
     /*~ Now we can initialize the `struct channel`.  This represents
      * the current channel state and is how we can generate the current
      * commitment transaction.
@@ -1238,7 +1237,8 @@ static u8 *rgb_funder_channel(struct state *state,
 				       &their_funding_pubkey,
 				       &state->funding_txid,
 				       state->feerate_per_kw,
-				       state->localconf.channel_reserve_satoshis);
+				       state->localconf.channel_reserve_satoshis,
+				       true);
 
     fail:
     if (taken(utxos))

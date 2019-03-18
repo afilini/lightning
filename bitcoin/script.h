@@ -150,4 +150,7 @@ bool scripteq(const u8 *s1, const u8 *s2);
 /* OP_0 + PUSH(32-byte-hash) */
 #define BITCOIN_SCRIPTPUBKEY_P2WSH_LEN (1 + 1 + 32)
 
+/* OP_RETURN PUSH(20-byte-hash) */
+#define BITCOIN_RGB_OP_RETURN_LEN (1 + 1 + 20)
+
 #endif /* LIGHTNING_BITCOIN_SCRIPT_H */
